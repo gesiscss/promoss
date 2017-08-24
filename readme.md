@@ -65,12 +65,10 @@ gpl also deal deriv work link creat deriv work gpl affect gpl defin scope copyri
 This optional file gives the vocabulary, one word per row. The line numbers correspond to the later indices in the topic-word matrix.
 
 ### Output files
-Cluster descriptions (e.g. means of the geographical clusters, bins of timestamps etc.) are saved in the cluster_desc/ folder.
-After each 10 runs, important parameters are stored in the output_Promoss/ subfolder, with the number of runs as folder name. The clusters_X file contains the topic loadings of each cluster of the Xth metadata. The topktopics file contains the top words of each topic (the number of returned top words can be set via the -topk parameter).
+After each 10 runs, important parameters are stored in the *output_LDA/* subfolder, with the number of runs as folder name. The *topktopic_words* file contains the top words of each topic (the number of returned top words can be set via the -topk parameter). The *nkt* file contains the word counts for each topic: Each line corresponds to a topic, and each column to a word (starting with index 0), corrsponding to the line numbers in *words.txt* file located in the main directory. The *doc_topic* file contains the topic probabilities for each document, rows correspond to documents (same ordering as given), columns to topics.
 
 ### Mandatory parameter
 * directory 		String. Gives the directory of the texts.txt file.
-
 
 ### Optional parameters:
 * T			Integer. Number of topics. Default: 100
@@ -78,7 +76,7 @@ After each 10 runs, important parameters are stored in the output_Promoss/ subfo
 * SAVE_STEP		Integer. Number of iterations after which the learned paramters are saved. Default: 10
 * TRAINING_SHARE		Double. Gives the share of documents which are used for training (0 to 1). Default: 1
 * BATCHSIZE		Integer. Batch size for topic estimation. Default: 128
-* BURNIN			Integer. Number of iterations till the topics are updated. Default: 200
+* BURNIN			Integer. Number of iterations till the topics are updated. Default: 0
 * INIT_RAND		Double. Topic-word counts are initiatlised as INIT_RAND * RANDOM(). Default: 0
 * MIN_DICT_WORDS		Integer. If the words.txt file is missing, words.txt is created by using words which occur at least MIN_DICT_WORDS times in the corpus. Default: 100
 * save_prefix		String. If given, this String is appended to all output files.
@@ -91,7 +89,7 @@ After each 10 runs, important parameters are stored in the output_Promoss/ subfo
 * rhos_document		Integer. Initial value of tau, a parameter for the learning rate of the document-topic distribution. Default: rhos
 * processed		Boolean. Tells if the text is already processed, or if words should be split with complex regular expressions. Otherwise split by spaces. Default: true.
 * stemming		Boolean. Activates word stemming in case no words.txt/wordsets file is given. Default: false
-* stopwords		Boolean. Activates stopword removal in case no words.txt/wordsets file is given. Defaukt: false
+* stopwords		Boolean. Activates stopword removal in case no words.txt/wordsets file is given. Default: false
 * language		String. Currently "en" and "de" are available languages for stemming. Default: "en"
 * store_empty		Boolean. Determines if empty documents should be omitted in the final document-topic matrix or if the topic distribution should be predicted using the context. Default: True
 * topk			Integer. Set the number of top words returned in the topktopics file of the output. Default: 100
@@ -100,7 +98,10 @@ After each 10 runs, important parameters are stored in the output_Promoss/ subfo
 
 ## Hierarchical Multi-Dirichlet Process Topic Model (Promoss)
 An efficient topic model which uses arbitrary document metadata!
-(Practical collapsed stochastic variational inference for hierarchical multi-Dirichlet process topic models) 
+
+For a description of the model, I refer to Chapter 4 of my dissertation: 
+
+[Christoph Carl Kling. Probabilistic Models for Context in Social Media - Novel Approaches and Inference Schemes. 2016](https://kola.opus.hbz-nrw.de/frontdoor/deliver/index/docId/1397/file/DissertationChristophKling.pdf)
 
 ### Example command line usage
 ```
@@ -168,30 +169,34 @@ Example groups.txt
 0 8 7 8 9
 0 9 8 9 10
 0 10 9 10 11
+[...]
+0 254 123 23 53
 ```
 
 The first line reads: For context 0, documents which are assigned to context group 0 draw their topics from context cluster 0 and context cluster 1.
+The last line reads: For context 0, documents which are assigned to context group 254 draw their topics from context cluster 123, 23 and 53.
 If no groups.txt is given, all context groups will be linked to a context cluster with the same ID, which means that all context clusters are independent.
 
 #### words.txt 
 This optional file gives the vocabulary, one word per row. The line numbers correspond to the later indices in the topic-word matrix.
 
 ### Output files
-Cluster descriptions (e.g. means of the geographical clusters, bins of timestamps etc.) are saved in the cluster_desc/ folder.
-After each 10 runs, important parameters are stored in the output_Promoss/ subfolder, with the number of runs as folder name. The clusters_X file contains the topic loadings of each cluster of the Xth metadata. The topktopics file contains the top words of each topic (the number of returned top words can be set via the -topk parameter).
+Cluster descriptions (e.g. means of the geographical clusters, bins of timestamps etc.) are saved in the *cluster_desc/* folder.
+After each 10 runs, important parameters are stored in the *output_HMDP/* subfolder, with the number of runs as folder name. The *clusters_X* file contains the topic loadings of each cluster of the *X*th metadata. The *topktopic_words* file contains the top words of each topic (the number of returned top words can be set via the -topk parameter).
+The *nkt* file contains the word counts for each topic: Each line corresponds to a topic, and each column to a word (starting with index 0), corrsponding to the line numbers in *words.txt* file located in the main directory. The *doc_topic* file contains the topic probabilities for each document, rows correspond to documents (same ordering as given), columns to topics.
 
 ### Mandatory parameter
 * directory 		String. Gives the directory of the texts.txt and groups.txt file.
 
 ### Mandatory Parameters when Using corpus.txt and meta.txt (Input Variant 1)
 * meta_params		String. Specifies the metadata types and gives the desired clustering. Types of metadata are given separated by semicolons (and correspond to the number of different metadata in the meta.txt file. Possible datatypes are:
-* G	Geographical coordinates. The number of desired clusters is specified in brackets, i.e. G(1000) will cluster the documents into 1000 clusters based on the geographical coordinates. (Technical detail: we use EM to fit a mixture of fisher distributions.)
-* T	UNIX timestamps (in seconds). The number of clusters (based on binning) is given in brackets, and there can be multiple clusterings based on a binning on the timeline or temporal cycles. This is indicated by a letter followed by the number of desired clusters:
-* L	Binning based on the timeline. Example: L1000 gives 1000 bins.
-* Y	Binning based on the yearly cycle. Example: L1000 gives 1000 bins.
-* M	Binning based on the monthly cycle. Example: L1000 gives 1000 bins.
-* W	Binning based on the weekly cycle. Example: L1000 gives 1000 bins.
-* D	Binning based on the daily  cycle. Example: L1000 gives 1000 bins.
+ * G	Geographical coordinates. The number of desired clusters is specified in brackets, i.e. G(1000) will cluster the documents into 1000 clusters based on the geographical coordinates. (Technical detail: we use EM to fit a mixture of fisher distributions.)
+ * T	UNIX timestamps (in seconds). The number of clusters (based on binning) is given in brackets, and there can be multiple clusterings based on a binning on the timeline or temporal cycles. This is indicated by a letter followed by the number of desired clusters:
+ * L	Binning based on the timeline. Example: L1000 gives 1000 bins.
+ * Y	Binning based on the yearly cycle. Example: L1000 gives 1000 bins.
+ * M	Binning based on the monthly cycle. Example: L1000 gives 1000 bins.
+ * W	Binning based on the weekly cycle. Example: L1000 gives 1000 bins.
+ * D	Binning based on the daily  cycle. Example: L1000 gives 1000 bins.
 * O	Ordinal values (numbers)
 * N	Nominal values (text strings)
 			
@@ -203,14 +208,28 @@ Example usage in the -meta_params parameter:
 
 This command can be used for the meta.txt given above. It would create 1000 geographical clusters based on the latitude and longitude. Then it would parse each UNIX timestamp to create 1000 clusters on the timeline, 100 clusters on the yearly, 10 clusters on the monthly, 20 clusters on the weekly and 10 clusters on the daily cycle (based on simple binning). Then the third metadata variable would be interpreted as an ordinal variable, meaning that each different value is an own cluster which is smoothed with the previous and next cluster (if existent).
 
-### Optional parameters:
-* T			Integer. Number of truncated topics
+#### Rule of thumb for clustering
+Clusters should not be too small, because the observed documents in a cluster should be sufficient to learn a cluster-specific topic prior.
+On the other hand, too few clusters prevent the model from capturing differences in topic frequencies in the context space.
+One rule of thumb for the number of clusters C in a corpus with M documents and (an expected number of) T topics is: C = M/T. I.e. if we have 1.000.000 documents and expect about 100 topics, it is reasonable to pick 10.000 clusters. This approximation is very simplistic, I recommend to use e.g. Dirichlet process-based methods such as infinite Gaussian mixture models for cluster detection before running the model. 
+
+### Optional parameters
+The parameters are sorted, most common parameters are on top:
+* T			Integer. Number of truncated topics. Default: 100
 * RUNS			Integer. Number of iterations the sampler will run. Default: 200
-* SAVE_STEP		Integer. Number of iterations after which the learned paramters are saved. Default: 10
+* processed		Boolean. Tells if the text is already processed, or if words should be split with complex regular expressions. Otherwise split by spaces. Default: true.
+* stemming		Boolean. Activates word stemming in case no words.txt/wordsets file is given. Default: false
+* stopwords		Boolean. Activates stopword removal in case no words.txt/wordsets file is given. Default: false
+* language		String. Currently "en" and "de" are available languages for stemming. Default: "en"
+* store_empty		Boolean. Determines if empty documents should be omitted in the final document-topic matrix or if the topic distribution should be predicted using the context. Default: True
 * TRAINING_SHARE		Double. Gives the share of documents which are used for training (0 to 1). Default: 1
+* topk			Integer. Set the number of top words returned in the topktopics file of the output. Default: 100
+* gamma			Double. Initial scaling parameter of the top-level Dirichlet process. Default: 1
+* learn_gamma		Boolean. Should gamma be learned during inference? Default: True
+* SAVE_STEP		Integer. Number of iterations after which the learned paramters are saved. Default: 10
 * BATCHSIZE		Integer. Batch size for topic estimation. Default: 128
 * BATCHSIZE_GROUPS	Integer. Batch size for group-specific parameter estimation. Default: BATCHSIZE
-* BURNIN			Integer. Number of iterations till the topics are updated. Default: 200
+* BURNIN			Integer. Number of iterations till the topics are updated. Default: 0
 * BURNIN_DOCUMENTS	Integer. Gives the number of sampling iterations where the group-specific parameters are not updated yet. Default: 0
 * INIT_RAND		Double. Topic-word counts are initiatlised as INIT_RAND * RANDOM(). Default: 0
 * SAMPLE_ALPHA		Integer. Every SAMPLE_ALPHAth document is used to estimate alpha_1. Default: 1
@@ -230,12 +249,7 @@ This command can be used for the meta.txt given above. It would create 1000 geog
 * rhokappa_group		Double. Initial value of kappa, a parameter for the learning rate of the group-topic distribution. Default: kappa
 * rhotau_group		Integer. Initial value of tau, a parameter for the learning rate of the group-topic distribution. Default: tau
 * rhos_group		Integer. Initial value of tau, a parameter for the learning rate of the group-topic distribution. Default: rhos
-* processed		Boolean. Tells if the text is already processed, or if words should be split with complex regular expressions. Otherwise split by spaces. Default: true.
-* stemming		Boolean. Activates word stemming in case no words.txt/wordsets file is given.
-* stopwords		Boolean. Activates stopword removal in case no words.txt/wordsets file is given.
-* language		String. Currently "en" and "de" are available languages for stemming.
-* store_empty		Boolean. Determines if empty documents should be omitted in the final document-topic matrix or if the topic distribution should be predicted using the context. Default: True
-* topk			Integer. Set the number of top words returned in the topktopics file of the output.
+
 
 
 

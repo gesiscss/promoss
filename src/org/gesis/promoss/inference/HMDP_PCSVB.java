@@ -30,9 +30,9 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
-import java.util.Set;
 
+import org.gesis.promoss.metadata.ClusterMetadata;
+import org.gesis.promoss.tools.geo.GeoJSON;
 import org.gesis.promoss.tools.math.BasicMath;
 import org.gesis.promoss.tools.probabilistic.ArrayUtils;
 import org.gesis.promoss.tools.probabilistic.DirichletEstimation;
@@ -68,7 +68,7 @@ public class HMDP_PCSVB {
 	public int SAMPLE_ALPHA = 1;
 	//Burn in phase: how long to wait till updating nkt?
 	public int BURNIN = 0;
-	//Burn in phase for documents: How long till we update the
+	//Burn in phase for documents: How long till we update the		boolean learn_gamma;
 	//topic distributions of context-clusters?
 	public int BURNIN_DOCUMENTS = 0;
 	//Should the topics be randomly initialised?
@@ -94,7 +94,11 @@ public class HMDP_PCSVB {
 	//Dirichlet parameter for multinomial over features
 	public double[] epsilon;
 
+	//Scaling parameter top level Dirichlet process
 	public double gamma = 1;
+	
+	//Do we want to learn gamma, which influences the number of topics?
+	boolean learn_gamma = true;
 
 	//Dirichlet concentration parameter for topic-word distributions
 	public double beta_0 = 0.01;
@@ -516,7 +520,6 @@ public class HMDP_PCSVB {
 
 		//Prior of the document-topic distribution
 		//(This is a mixture of the cluster-topic distributions of the clusters of the document
-		double sum = 0;
 		double[] topic_prior = new double[T];
 		for (int f=0;f<c.F;f++) {
 			int g = group[f];
@@ -530,15 +533,14 @@ public class HMDP_PCSVB {
 					double temp = 	(sumqfck[f][a][k] + (alpha_0 * pi_0[k])) * temp3;
 					double temp4 = temp*featureprior[f];
 					topic_prior[k]+=temp4;
-					sum+=temp4;
 					pk_f[k][f]+=temp4;
 					pk_fck[f][i][k] = temp4;
 				}
 			}
 		}
-		for (int k=0;k<T;k++) {
-			topic_prior[k] /= sum;
-		}
+		
+		topic_prior = BasicMath.normalise(topic_prior);
+		
 
 		for (int k=0;k<T;k++) {
 			pk_f[k]=BasicMath.normalise(pk_f[k]);
@@ -599,6 +601,7 @@ public class HMDP_PCSVB {
 							" qk " + q[k] + 
 							" nmk " + nmk[m][k] + 
 							" prior " + topic_prior[k] + 
+							" pik " + pi_0[k] +
 							" nkt " + nkt[k][t]+ 
 							" a0 " + alpha_0  + 		
 							" alpha1 " + alpha_1 +
@@ -829,8 +832,7 @@ public class HMDP_PCSVB {
 		//sumqkfc2[f][a][k] ok
 		//sumqfgc[f][group[f]][i] ok 
 		//sumqfg[f][group[f]] 
-
-
+		
 		//we update after we saw all documents from the group 
 		//OR if we saw BATCHSIZE_GROUPS documents
 		int BATCHSIZE_GROUP_MIN = Math.min(c.Cfg[f][g],BATCHSIZE_GROUPS);
@@ -882,10 +884,7 @@ public class HMDP_PCSVB {
 
 
 
-			if (rhot_step > BURNIN_DOCUMENTS+2)  {
-				//Update global topic distribution
-				updateGlobalTopicDistribution();
-			}
+
 
 			//			Iterator<Integer> it = affected_groups.get(f).get(g).iterator();
 			//			while (it.hasNext()) {
@@ -893,6 +892,7 @@ public class HMDP_PCSVB {
 			//				estimateGroupTopicDistribution(f,ag);
 			//			}
 		}
+		
 	}
 
 	public void updateGlobalTopicDistribution() {
@@ -922,12 +922,15 @@ public class HMDP_PCSVB {
 						double a0pik=alpha_0 * pi_0[k];
 						tables = (sumqfck_ge0[f][i][k] > 0) ? a0pik * sumqfck_ge0[f][i][k] * (Gamma.digamma0(a0pik + sumqfck[f][i][k] / sumqfck_ge0[f][i][k]) - Gamma.digamma0(a0pik)) : 0;
 						//we do not add the variance here, so we have to check for negative counts
-						if (tables < 0) tables = 0;
 					}
 					else {
 						//Sampled number of tables -> better perplexity
 						tables = sumqfck_ge0[f][i][k] * rs.randNumTable(pi_0[k], sumqfck[f][i][k]);
 					}
+					if (tables < 0 || Double.isNaN(tables)) {
+						tables = 0;
+					}
+					
 					sumfck[k] += tables;
 					//sum_cluster_tables += sumfck[k];
 				}
@@ -1027,12 +1030,15 @@ public class HMDP_PCSVB {
 
 		int a = 1;
 		int b = 0;
-		gamma = (T + a - 2) / (gamma_denominator + b);
 
+		if (learn_gamma && !Double.isInfinite(gamma_denominator) && !Double.isNaN(gamma_denominator)) {
+			gamma = (T + a - 1) / (gamma_denominator + b);
+		}
 
 	}
 
 	public void updateHyperParameters() {
+
 
 		//we have to have at least one run for learning the cluster-specific parameters
 		if(rhot_step>BURNIN_DOCUMENTS+1) {
@@ -1165,8 +1171,12 @@ public class HMDP_PCSVB {
 
 
 		}
-
-
+		
+		if (rhot_step > BURNIN_DOCUMENTS+1)  {
+			//Update global topic distribution
+			updateGlobalTopicDistribution();
+		}
+		
 	}
 
 
@@ -1193,11 +1203,22 @@ public class HMDP_PCSVB {
 		save.saveVar(pi_0, output_folder+save_prefix+"pi0");
 		save.close();
 		save.saveVar(sumqf, output_folder+save_prefix+"sumqf");
+		
+		
+		
 		save.close();
 		save.saveVar(alpha_0, output_folder+save_prefix+"alpha_0");
 		save.close();
 		save.saveVar(alpha_1, output_folder+save_prefix+"alpha_1");
 		save.close();
+		
+		double[] zeta = new double[c.F];
+		for (int f=0;f<c.F;f++) {
+			zeta[f] = sumqf[f]+epsilon[f];
+		}
+		zeta = BasicMath.normalise(zeta);
+		save.saveVar(zeta, output_folder+save_prefix+"zeta");
+
 
 		//We save the large document-topic file every 10 save steps, together with the perplexity
 		if ((rhot_step % (SAVE_STEP *10)) == 0) {
@@ -1309,6 +1330,16 @@ public class HMDP_PCSVB {
 			}
 
 			save.saveVar(feature_cluster_topics[f], output_folder+save_prefix+"clusters_"+f+"");
+			
+			String cluster_geo_file = c.directory + ClusterMetadata.cluster_folder + "cluster_"+ f + "_geo";
+			String cluster_geojson_folder = output_folder+save_prefix+"clusters_"+ f + "_geojson";
+
+			if (new File(cluster_geo_file).exists()) {
+				GeoJSON.saveTopicMap(feature_cluster_topics[f],
+						cluster_geo_file,
+						cluster_geojson_folder);
+			}
+			
 			save.close();
 		}
 
@@ -1318,7 +1349,8 @@ public class HMDP_PCSVB {
 
 
 		String[][] topktopics = new String[T*2][topk];
-
+		String topktopic_words = "";
+		
 		for (int k=0;k<T;k++) {
 
 			List<Pair> wordprob = new ArrayList<Pair>(); 
@@ -1330,13 +1362,19 @@ public class HMDP_PCSVB {
 			for (int i=0;i<topk;i++) {
 				topktopics[k*2][i] = (String) wordprob.get(i).first;
 				topktopics[k*2+1][i] = String.valueOf(wordprob.get(i).second);
+				if (i>0) {
+					topktopic_words += " ";
+				}
+				topktopic_words += topktopics[k*2][i];
 			}
+			topktopic_words+="\n";
 
 		}
 		save.saveVar(topktopics, output_folder+save_prefix+"topktopics");
+		save.saveVar(topktopic_words, output_folder+save_prefix+"topktopic_words");
 		save.saveVar(delta, output_folder+save_prefix+"delta");
 		save.saveVar(epsilon, output_folder+save_prefix+"epsilon");
-
+		
 
 		save.saveVar("alpha_0 "+alpha_0+
 				"\nalpha_1 "+ alpha_1+
